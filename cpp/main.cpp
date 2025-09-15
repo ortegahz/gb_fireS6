@@ -21,7 +21,6 @@ int extract_number(const std::string &filename) {
     return 0;
 }
 
-// 格式化输出，与Python版本匹配
 std::string format_point_queue(const std::vector<std::pair<double, PointD>> &queue) {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(5);
@@ -37,10 +36,11 @@ std::string format_point_queue(const std::vector<std::pair<double, PointD>> &que
 std::string format_fire_object(const Fire &fire) {
     std::stringstream ss;
     ss << std::fixed;
-    ss << "Fire(fire_box=" << std::setprecision(13) << "(" << fire.fire_box.x << ", " << fire.fire_box.y << ", "
+    ss << "Fire(fire_box=" << std::setprecision(17) << "(" << fire.fire_box.x << ", " << fire.fire_box.y << ", "
        << fire.fire_box.width << ", " << fire.fire_box.height << ")"
        << ", score=" << std::setprecision(17) << fire.score
-       // fire_point is not in C++ version, skipping
+       // <-- 新增 fire_point 的输出
+       << ", fire_point=(" << std::setprecision(1) << fire.fire_point.x << ", " << fire.fire_point.y << ")"
        << ", center_point=(" << std::setprecision(10) << fire.center_point.x << ", " << fire.center_point.y << ")"
        << ", matched=" << (fire.matched ? "True" : "False")
        << ", point_queue=" << format_point_queue(fire.point_queue)
@@ -67,17 +67,15 @@ std::string format_warning_boxes(const std::vector<Fire> &warning_boxes) {
 int main(int argc, char *argv[]) {
     const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache";
     const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_cpp.txt";
-    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757382127/";
+    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757382127";
 
     FireDetector detector;
 
-    // 更新 std_pts_vec 的坐标，与 Python 版本对齐
     std::vector<cv::Point> std_pts_vec = {{768, 291},
                                           {892, 308}};
 
     const int W = 1920, H = 1080;
 
-    // 修正 std_coord 的计算逻辑，与 Python 完全一致
     cv::Rect roi = cv::boundingRect(std_pts_vec);
     double expand_exclude_ratio = 0.5;
     double sx1 = std::max(0.0, roi.x - roi.width * expand_exclude_ratio);

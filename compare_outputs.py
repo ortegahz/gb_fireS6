@@ -169,7 +169,7 @@ def compute_score_metrics(scores1, scores2):
 
 def main():
     parser = argparse.ArgumentParser(description="Compare two output.txt files for fire detection results.")
-    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_org_v1.txt",
+    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_py.txt",
                         help="Path to the first output file (e.g., ground truth or baseline).")
     parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6_cpp.txt",
                         help="Path to the second output file (to be compared).")

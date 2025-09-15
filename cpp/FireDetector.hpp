@@ -6,22 +6,20 @@
 #include <string>
 #include <deque>
 
-// 使用 double-precision 以匹配 Python/Numpy 行为
 using RectD = cv::Rect2d;
 using PointD = cv::Point2d;
 
-// 对应 Python 中的 NmsBBoxInfo
 struct NmsBBoxInfo {
     double score;
     int classID;
     RectD box;
 };
 
-// 对应 Python 中的 Fire 类
 class Fire {
 public:
     RectD fire_box;
     double score;
+    PointD fire_point; // <-- 新增成员
     bool matched;
 
     std::vector<std::pair<double, PointD>> point_queue;
@@ -35,7 +33,6 @@ public:
     Fire(RectD box, double s);
 };
 
-// fire_locate 返回的结果
 struct FireLocateResult {
     int shape_id;
     PointD coord;
@@ -43,7 +40,6 @@ struct FireLocateResult {
     cv::Mat vis_img;
 };
 
-// outlier_filter 返回的结果
 struct OutlierFilterResult {
     bool valid_flag;
     PointD weighted_avg;
@@ -51,13 +47,11 @@ struct OutlierFilterResult {
     int non_outlier_num;
 };
 
-// detect_fire 的最终返回结果
 struct DetectFireResult {
     std::vector<Fire> warning_boxes;
     std::vector<Fire> pre_fire_boxes;
 };
 
-// 主检测器类
 class FireDetector {
 public:
     FireDetector();
@@ -71,11 +65,10 @@ public:
     );
 
 private:
-    const int W = 1920, H = 1080; // 修正H的值以匹配Python
+    const int W = 1920, H = 1080;
     const int QUEUE_MAX_LEN = 10;
     const std::vector<double> SHAPE_SCORES = {0.72, 0.9, 0.7, 0.5, 0.3, 0.1};
 
-    // --- Helper Functions ---
     std::pair<std::vector<NmsBBoxInfo>, std::vector<NmsBBoxInfo>>
     filter_firein_tungsten(const std::vector<NmsBBoxInfo> &detect_boxes);
 
@@ -87,7 +80,7 @@ private:
                                    const std::vector<int> &left_zeros, const RectD &ext_xxyy, int path_idx);
 
     std::pair<int, int>
-    refine_bbox(const cv::Mat &im, const cv::Rect &xyxy, int thresh, int up_tol = 3, int down_tol = 2);
+    refine_bbox(const cv::Mat &im, const cv::Rect &xyxy, int thresh = -1, int up_tol = 3, int down_tol = 2);
 
     cv::Mat cal_rb(const cv::Mat &im);
 
@@ -104,7 +97,6 @@ private:
 
     std::pair<int, double> find_most_significant_valley(const std::vector<int> &span_list);
 
-    // 补全缺失的函数声明
     std::pair<double, int> is_diamond(const std::vector<int> &lst);
 
     std::pair<double, int> is_rectangle(const std::vector<int> &lst);
