@@ -6,35 +6,39 @@
 #include <string>
 #include <deque>
 
+// 使用 double-precision 以匹配 Python/Numpy 行为
+using RectD = cv::Rect2d;
+using PointD = cv::Point2d;
+
 // 对应 Python 中的 NmsBBoxInfo
 struct NmsBBoxInfo {
-    float score;
+    double score;
     int classID;
-    cv::Rect2f box;
+    RectD box;
 };
 
 // 对应 Python 中的 Fire 类
 class Fire {
 public:
-    cv::Rect2f fire_box;
+    RectD fire_box;
     double score;
     bool matched;
 
-    std::vector<std::pair<double, cv::Point2f>> point_queue;
+    std::vector<std::pair<double, PointD>> point_queue;
 
-    cv::Point2f center_point;
+    PointD center_point;
     bool queue_valid_flag;
     int non_zero_num;
     int non_outlier_num;
     bool alarm_flag;
 
-    Fire(cv::Rect2f box, double s);
+    Fire(RectD box, double s);
 };
 
 // fire_locate 返回的结果
 struct FireLocateResult {
     int shape_id;
-    cv::Point2f coord;
+    PointD coord;
     double weight;
     cv::Mat vis_img;
 };
@@ -42,7 +46,7 @@ struct FireLocateResult {
 // outlier_filter 返回的结果
 struct OutlierFilterResult {
     bool valid_flag;
-    cv::Point2f weighted_avg;
+    PointD weighted_avg;
     int non_zero_num;
     int non_outlier_num;
 };
@@ -62,7 +66,7 @@ public:
             const std::vector<NmsBBoxInfo> &results,
             const cv::Mat &img_rgb,
             const std::vector<Fire> &pre_fire_boxes_in,
-            const cv::Rect2f &std_coord,
+            const RectD &std_coord,
             int path_idx = 0
     );
 
@@ -73,18 +77,15 @@ private:
     const std::vector<double> SHAPE_SCORES = {0.72, 0.9, 0.7, 0.5, 0.3, 0.1};
 
     // --- Helper Functions ---
-
-    // from filters.py
     std::pair<std::vector<NmsBBoxInfo>, std::vector<NmsBBoxInfo>>
     filter_firein_tungsten(const std::vector<NmsBBoxInfo> &detect_boxes);
 
     std::vector<Fire> filter_iou(std::vector<Fire> fire_list);
 
-    // from fire_loc_spot.py
-    FireLocateResult fire_locate(const cv::Mat &im, const cv::Rect2f &bbox, const cv::Rect2f &ext_xxyy, int path_idx);
+    FireLocateResult fire_locate(const cv::Mat &im, const RectD &bbox, const RectD &ext_xxyy, int path_idx);
 
     FireLocateResult shape_process(const std::vector<int> &span_list, const cv::Mat &im, const cv::Rect &xxyy,
-                                   const std::vector<int> &left_zeros, const cv::Rect2f &ext_xxyy, int path_idx);
+                                   const std::vector<int> &left_zeros, const RectD &ext_xxyy, int path_idx);
 
     std::pair<int, int>
     refine_bbox(const cv::Mat &im, const cv::Rect &xyxy, int thresh, int up_tol = 3, int down_tol = 2);
@@ -94,7 +95,6 @@ private:
     std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>
     count_high_rg_pixels_per_row(const cv::Mat &crop, int thresh);
 
-    // Shape analysis methods
     std::pair<double, int> is_circle(const std::vector<int> &lst);
 
     std::pair<double, int> is_short(const std::vector<int> &lst);
@@ -109,17 +109,15 @@ private:
 
     std::pair<double, int> is_rectangle(const std::vector<int> &lst);
 
-    // from outlier_queue.py
     OutlierFilterResult
-    outlier_filter(const std::vector<std::pair<double, cv::Point2f>> &res, std::pair<int, int> min_valid_num,
+    outlier_filter(const std::vector<std::pair<double, PointD>> &res, std::pair<int, int> min_valid_num,
                    double threshold = 2.5, int max_outlier_num = 3);
 
-    std::vector<int> find_outliers(const std::vector<cv::Point2f> &points, double threshold, int max_outlier_num);
+    std::vector<int> find_outliers(const std::vector<PointD> &points, double threshold, int max_outlier_num);
 
-    // from utils.py (as static helpers)
-    static double calculate_iou(const cv::Rect2f &box1, const cv::Rect2f &box2);
+    static double calculate_iou(const RectD &box1, const RectD &box2);
 
-    static std::vector<NmsBBoxInfo> merge_rects(std::vector<NmsBBoxInfo> &boxes);
+    static std::vector<NmsBBoxInfo> merge_rects(const std::vector<NmsBBoxInfo> &boxes);
 };
 
 #endif // FIREDETECTOR_HPP
