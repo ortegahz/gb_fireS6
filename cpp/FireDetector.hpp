@@ -71,9 +71,8 @@ public:
     );
 
 private:
-    const int W = 1920, H = 1080;
+    const int W = 1920, H = 1920;
     const int QUEUE_MAX_LEN = 10;
-    const std::vector<std::string> SHAPE_NAMES = {"圆", "葫芦", "类圆", "菱形", "长条", "其他"};
     const std::vector<double> SHAPE_SCORES = {0.72, 0.9, 0.7, 0.5, 0.3, 0.1};
 
     // --- Helper Functions ---

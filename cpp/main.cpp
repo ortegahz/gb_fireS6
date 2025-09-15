@@ -34,24 +34,30 @@ std::string format_point_queue(const std::vector<std::pair<double, PointD>> &que
     return ss.str();
 }
 
+std::string format_fire_object(const Fire &fire) {
+    std::stringstream ss;
+    ss << std::fixed;
+    ss << "Fire(fire_box=" << std::setprecision(13) << "(" << fire.fire_box.x << ", " << fire.fire_box.y << ", "
+       << fire.fire_box.width << ", " << fire.fire_box.height << ")"
+       << ", score=" << std::setprecision(1) << fire.score
+       // fire_point is not in C++ version, skipping
+       << ", center_point=(" << std::setprecision(10) << fire.center_point.x << ", " << fire.center_point.y << ")"
+       << ", matched=" << (fire.matched ? "True" : "False")
+       << ", point_queue=" << format_point_queue(fire.point_queue)
+       << ", queue_valid_flag=" << (fire.queue_valid_flag ? "True" : "False")
+       << ", alarm_flag=" << (fire.alarm_flag ? "True" : "False")
+       << ", non_zero_num=" << fire.non_zero_num
+       << ", non_outlier_num=" << fire.non_outlier_num
+       << ")";
+    return ss.str();
+}
+
 std::string format_warning_boxes(const std::vector<Fire> &warning_boxes) {
     if (warning_boxes.empty()) return "[]";
     std::stringstream ss;
-    ss << std::fixed;
     ss << "[";
     for (size_t i = 0; i < warning_boxes.size(); ++i) {
-        const auto &fire = warning_boxes[i];
-        ss << "Fire(fire_box=" << std::setprecision(10) << "(" << fire.fire_box.x << ", " << fire.fire_box.y << ", "
-           << fire.fire_box.width << ", " << fire.fire_box.height << ")"
-           << ", score=" << std::setprecision(1) << fire.score
-           << ", center_point=(" << std::setprecision(10) << fire.center_point.x << ", " << fire.center_point.y << ")"
-           << ", matched=" << (fire.matched ? "true" : "false")
-           << ", point_queue=" << format_point_queue(fire.point_queue)
-           << ", queue_valid_flag=" << (fire.queue_valid_flag ? "True" : "False")
-           << ", alarm_flag=" << (fire.alarm_flag ? "True" : "False")
-           << ", non_zero_num=" << fire.non_zero_num
-           << ", non_outlier_num=" << fire.non_outlier_num
-           << ")";
+        ss << format_fire_object(warning_boxes[i]);
         if (i < warning_boxes.size() - 1) ss << ", ";
     }
     ss << "]";
@@ -127,8 +133,10 @@ int main(int argc, char *argv[]) {
         pre_fire_boxes = detection_output.pre_fire_boxes;
 
         std::string warning_str = format_warning_boxes(detection_output.warning_boxes);
-        std::cout << img_idx << "\t" << image_path.filename().string() << "\t" << warning_str << std::endl;
         f_out << img_idx << "\t" << image_path.filename().string() << "\t" << warning_str << "\n";
+
+        // Optional: Also print to console
+        // std::cout << img_idx << "\t" << image_path.filename().string() << "\t" << warning_str << std::endl;
 
         img_idx++;
     }
