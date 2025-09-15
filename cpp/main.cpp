@@ -39,7 +39,7 @@ std::string format_fire_object(const Fire &fire) {
     ss << std::fixed;
     ss << "Fire(fire_box=" << std::setprecision(13) << "(" << fire.fire_box.x << ", " << fire.fire_box.y << ", "
        << fire.fire_box.width << ", " << fire.fire_box.height << ")"
-       << ", score=" << std::setprecision(1) << fire.score
+       << ", score=" << std::setprecision(17) << fire.score
        // fire_point is not in C++ version, skipping
        << ", center_point=(" << std::setprecision(10) << fire.center_point.x << ", " << fire.center_point.y << ")"
        << ", matched=" << (fire.matched ? "True" : "False")
@@ -66,27 +66,25 @@ std::string format_warning_boxes(const std::vector<Fire> &warning_boxes) {
 
 int main(int argc, char *argv[]) {
     const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache";
-    const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6.txt";
-    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/2p";
+    const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_cpp.txt";
+    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757382127/";
 
     FireDetector detector;
 
-    std::vector<cv::Point> std_pts_vec = {{828, 310},
-                                          {885, 310},
-                                          {945, 310},
-                                          {826, 320},
-                                          {886, 319},
-                                          {946, 318},
-                                          {826, 330},
-                                          {886, 328},
-                                          {950, 331}};
+    // 更新 std_pts_vec 的坐标，与 Python 版本对齐
+    std::vector<cv::Point> std_pts_vec = {{768, 291},
+                                          {892, 308}};
+
     const int W = 1920, H = 1080;
+
+    // 修正 std_coord 的计算逻辑，与 Python 完全一致
     cv::Rect roi = cv::boundingRect(std_pts_vec);
-    RectD std_coord;
-    std_coord.x = std::max(0.0, roi.x - roi.width * 0.5);
-    std_coord.y = std::max(0.0, roi.y - roi.height * 0.5);
-    std_coord.width = std::min((double) roi.width * 2.0, (double) W - std_coord.x);
-    std_coord.height = std::min((double) roi.height * 2.0, (double) H - std_coord.y);
+    double expand_exclude_ratio = 0.5;
+    double sx1 = std::max(0.0, roi.x - roi.width * expand_exclude_ratio);
+    double sy1 = std::max(0.0, roi.y - roi.height * expand_exclude_ratio);
+    double sw = std::min(roi.width * (1 + 2 * expand_exclude_ratio), W - sx1);
+    double sh = std::min(roi.height * (1 + 2 * expand_exclude_ratio), H - sy1);
+    RectD std_coord(sx1, sy1, sw, sh);
 
     std::vector<fs::path> file_list;
     if (fs::exists(IMG_FOLDER_PATH) && fs::is_directory(IMG_FOLDER_PATH)) {
@@ -134,9 +132,6 @@ int main(int argc, char *argv[]) {
 
         std::string warning_str = format_warning_boxes(detection_output.warning_boxes);
         f_out << img_idx << "\t" << image_path.filename().string() << "\t" << warning_str << "\n";
-
-        // Optional: Also print to console
-        // std::cout << img_idx << "\t" << image_path.filename().string() << "\t" << warning_str << std::endl;
 
         img_idx++;
     }

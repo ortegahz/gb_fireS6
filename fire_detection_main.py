@@ -28,7 +28,7 @@ if __name__ == "__main__":
     # 设置为 False: 从本地加载已保存的检测结果，跳过模型推理。
     RUN_YOLO_INFERENCE = False
     DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache"
-    OUTPUT_FILE = "/home/manu/tmp/output_gb_s6.txt"
+    OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_py.txt"
 
     # img_folder = Path("./05/p")
     # img_folder = Path(r"\\172.20.254.27\青鸟消防智慧可视化02\00部门共享\【临时文件交换目录】\【to】胡靖\0912-data\0909\2p")
@@ -38,14 +38,14 @@ if __name__ == "__main__":
         model_weight = "./models/s37e13best.onnx"
         model_inference = YOLOInference(weights=model_weight, conf_thresh=0.3, iou_thresh=0.45)
     os.makedirs(DETECTION_CACHE_DIR, exist_ok=True)
-    std_pts = np.array([
-        (828, 310), (885, 310), (945, 310),
-        (826, 320), (886, 319), (946, 318),
-        (826, 330), (886, 328), (950, 331)
-    ])
     # std_pts = np.array([
-    #     (1000,540), (1150, 630),
+    #     (828, 310), (885, 310), (945, 310),
+    #     (826, 320), (886, 319), (946, 318),
+    #     (826, 330), (886, 328), (950, 331)
     # ])
+    std_pts = np.array([
+        (768, 291), (892, 308),
+    ])
     W, H = 1920, 1080
     # Compute inclusive ROI around the standard points, expanded by a ratio
     sx1, sy1 = np.min(std_pts, axis=0)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     multiFrameSwitch = True
     CheckingFireInformationGlobal = deque()
 
-    img_folder = glob.glob("/home/manu/nfs/2p/*")
+    img_folder = glob.glob("/home/manu/nfs/visi_1757382127/*")
     sorted_file_list = sorted(img_folder, key=extract_number)
     img_idx = 0
     with open(OUTPUT_FILE, 'w') as f_out:
@@ -120,7 +120,7 @@ if __name__ == "__main__":
                 calculate_iou,
                 merge_rects,
                 path_idx=img_idx
-                )
+            )
             print(img_idx, "---------", warning_boxes)
             # 将结果写入output.txt
             f_out.write(f"{img_idx}\t{Path(i).name}\t{warning_boxes}\n")

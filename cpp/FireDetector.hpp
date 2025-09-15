@@ -71,7 +71,7 @@ public:
     );
 
 private:
-    const int W = 1920, H = 1920;
+    const int W = 1920, H = 1080; // 修正H的值以匹配Python
     const int QUEUE_MAX_LEN = 10;
     const std::vector<double> SHAPE_SCORES = {0.72, 0.9, 0.7, 0.5, 0.3, 0.1};
 
@@ -104,6 +104,7 @@ private:
 
     std::pair<int, double> find_most_significant_valley(const std::vector<int> &span_list);
 
+    // 补全缺失的函数声明
     std::pair<double, int> is_diamond(const std::vector<int> &lst);
 
     std::pair<double, int> is_rectangle(const std::vector<int> &lst);
@@ -116,7 +117,7 @@ private:
 
     static double calculate_iou(const RectD &box1, const RectD &box2);
 
-    static std::vector<NmsBBoxInfo> merge_rects(const std::vector<NmsBBoxInfo> &boxes);
+    std::vector<NmsBBoxInfo> merge_rects(std::vector<NmsBBoxInfo> &boxes);
 };
 
 #endif // FIREDETECTOR_HPP
