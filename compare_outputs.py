@@ -54,42 +54,74 @@ def calculate_iou(box1, box2):
 
 
 def parse_fire_objects(fire_str):
-    """从字符串中解析出Fire对象列表"""
-    if fire_str == '[]':
+    """从字符串中解析出Fire对象列表，支持嵌套括号和不同格式。"""
+    if not fire_str or fire_str.strip() == '[]':
         return []
 
     objects = []
-    # 使用正则表达式找到每个 Fire(...) 结构
-    fire_pattern = re.compile(r"Fire\((.*?)\)")
-    # 正则表达式来提取关键字段
-    box_pattern = re.compile(r"fire_box=\(([\d\s.,-]+)\)")
-    score_pattern = re.compile(r"score=([\d.-]+)")
+    # Regex patterns for the fields we need to compare.
+    # Making them robust to scientific notation (e/E).
+    box_pattern = re.compile(r"fire_box=\(([\d\s.,eE+-]+)\)")
+    score_pattern = re.compile(r"score=([\d.eE+-]+)")
     flag_pattern = re.compile(r"alarm_flag=(True|False)")
 
-    for match in fire_pattern.finditer(fire_str):
-        obj_str = match.group(1)
-
-        box_match = box_pattern.search(obj_str)
-        score_match = score_pattern.search(obj_str)
-        flag_match = flag_pattern.search(obj_str)
-
-        if not all([box_match, score_match, flag_match]):
-            continue
-
+    # Manually find each "Fire(...)" block to handle nested parentheses correctly.
+    # This is more robust than a single complex regex.
+    search_start = 0
+    while True:
         try:
-            # 解析 fire_box, 将字符串 "x, y, w, h" 转为元组
-            fire_box = tuple(map(float, box_match.group(1).split(', ')))
-            score = float(score_match.group(1))
-            alarm_flag = flag_match.group(1) == 'True'
+            # Find the start of the content, right after "Fire("
+            content_start_idx = fire_str.index("Fire(", search_start) + len("Fire(")
 
-            objects.append({
-                "fire_box": fire_box,
-                "score": score,
-                "alarm_flag": alarm_flag
-            })
-        except (ValueError, IndexError) as e:
-            print(f"Warning: Failed to parse object string chunk: {obj_str}. Error: {e}")
-            continue
+            # Scan to find the matching closing parenthesis for this "Fire(...)" block
+            paren_level = 1
+            scan_idx = content_start_idx
+            while scan_idx < len(fire_str) and paren_level > 0:
+                char = fire_str[scan_idx]
+                if char == '(':
+                    paren_level += 1
+                elif char == ')':
+                    paren_level -= 1
+                scan_idx += 1
+
+            # If we didn't find a matching parenthesis, the string is malformed.
+            if paren_level != 0:
+                break
+
+            # Extract the content of this Fire object
+            content_end_idx = scan_idx - 1
+            obj_str = fire_str[content_start_idx:content_end_idx]
+
+            # Set the next search to start after this object.
+            search_start = scan_idx
+
+            # Now, parse the fields from the extracted object content string
+            box_match = box_pattern.search(obj_str)
+            score_match = score_pattern.search(obj_str)
+            flag_match = flag_pattern.search(obj_str)
+
+            if not all([box_match, score_match, flag_match]):
+                continue
+
+            try:
+                # Parse fire_box: "x, y, w, h" -> tuple of floats
+                # Splitting by comma and stripping is more robust than assuming ", "
+                box_coords_str = box_match.group(1).split(',')
+                fire_box = tuple(map(float, [s.strip() for s in box_coords_str]))
+                score = float(score_match.group(1))
+                alarm_flag = flag_match.group(1) == 'True'
+
+                objects.append({
+                    "fire_box": fire_box,
+                    "score": score,
+                    "alarm_flag": alarm_flag
+                })
+            except (ValueError, IndexError) as e:
+                print(f"Warning: Failed to parse values from object string chunk: {obj_str[:150]}. Error: {e}")
+                continue
+        except ValueError:
+            # No more "Fire(" substrings found. We are done.
+            break
 
     return objects
 
@@ -139,13 +171,15 @@ def main():
     parser = argparse.ArgumentParser(description="Compare two output.txt files for fire detection results.")
     parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_org.txt",
                         help="Path to the first output file (e.g., ground truth or baseline).")
-    parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6.txt", help="Path to the second output file (to be compared).")
+    parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6.txt",
+                        help="Path to the second output file (to be compared).")
     parser.add_argument("--iou_thresh", type=float, default=0.7, help="IoU threshold for matching boxes.")
     parser_add_boolean = lambda p, name, default, help: p.add_argument(f'--{name}', f'--no-{name}', help=help,
                                                                        default=default,
                                                                        action=argparse.BooleanOptionalAction)
     parser_add_boolean(parser, "show", default=True, help="Show the plot after generating.")
-    parser.add_argument("--out_png", default="/home/manu/tmp/compare_fire_detection.png", help="Path to save the comparison plot.")
+    parser.add_argument("--out_png", default="/home/manu/tmp/compare_fire_detection.png",
+                        help="Path to save the comparison plot.")
     args = parser.parse_args()
 
     if not os.path.isfile(args.file_a):
