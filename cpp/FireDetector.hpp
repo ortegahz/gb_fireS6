@@ -50,6 +50,7 @@ struct OutlierFilterResult {
 struct DetectFireResult {
     std::vector<Fire> warning_boxes;
     std::vector<Fire> pre_fire_boxes;
+    std::string log_str;
 };
 
 class FireDetector {
@@ -65,7 +66,7 @@ public:
     );
 
 private:
-    const int W = 1920, H = 1080;
+    const int W = 1280, H = 720;
     const int QUEUE_MAX_LEN = 10;
     const std::vector<double> SHAPE_SCORES = {0.72, 0.9, 0.7, 0.5, 0.3, 0.1};
 

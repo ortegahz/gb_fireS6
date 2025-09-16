@@ -3,6 +3,25 @@
 #include <numeric>
 #include <algorithm>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
+
+namespace {
+    // 辅助函数：将 RectD 格式化为 Python 元组样式
+    std::string format_rect(const RectD &rect) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(17)
+           << "(" << rect.x << ", " << rect.y << ", " << rect.width << ", " << rect.height << ")";
+        return ss.str();
+    }
+
+    // 辅助函数：将 PointD 格式化为 Python list 样式 (for outlier_filter)
+    std::string format_point_as_list(const PointD &point) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(1) << "[" << point.x << ". " << point.y << ".]";
+        return ss.str();
+    }
+}
 
 Fire::Fire(RectD box, float s)
         : fire_box(box), score(s), fire_point(0.0, 0.0), matched(true), center_point(0, 0),
@@ -13,6 +32,8 @@ FireDetector::FireDetector() {}
 DetectFireResult FireDetector::detect_fire_frame(const std::vector<NmsBBoxInfo> &results, const cv::Mat &img_rgb,
                                                  const std::vector<Fire> &pre_fire_boxes_in, const RectD &std_coord,
                                                  int path_idx) {
+    std::stringstream log_ss;
+
     auto [filter_result_raw, tungsten_result] = filter_firein_tungsten(results);
 
     std::vector<NmsBBoxInfo> responding_labels;
@@ -75,7 +96,13 @@ DetectFireResult FireDetector::detect_fire_frame(const std::vector<NmsBBoxInfo> 
         }
     }
 
+    log_ss << "--- Per-Fire Analysis (Total " << pre_fire_boxes.size() << " fires) ---\n";
+    int fire_idx_counter = 0;
     for (auto &fire: pre_fire_boxes) {
+        log_ss << "\n[Fire Object " << fire_idx_counter << "] Box: " << format_rect(fire.fire_box)
+               << ", Score: " << std::fixed << std::setprecision(3) << fire.score
+               << ", Matched: " << (fire.matched ? "(True,)" : "(False,)") << "\n";
+
         PointD coord_best(0.0, 0.0);
         double weight_best = 0.0;
         int shape_id_best = 5;
@@ -87,6 +114,15 @@ DetectFireResult FireDetector::detect_fire_frame(const std::vector<NmsBBoxInfo> 
             coord_best = fire_loc_res.coord;
             weight_best = fire_loc_res.weight;
             shape_id_best = fire_loc_res.shape_id;
+            log_ss << "  - fire_locate (matched): coord="
+                   << "[" << static_cast<int>(coord_best.x) << " " << static_cast<int>(coord_best.y) << "]"
+                   << ", weight=" << std::fixed << std::setprecision(3) << weight_best
+                   << ", shape_id=" << shape_id_best << "\n";
+
+        } else {
+            log_ss << "  - fire_locate (unmatched): placeholder coord=(0.0, 0.0)"
+                   << ", weight=0.000"
+                   << ", shape_id=None\n";
         }
 
         fire.point_queue.emplace_back(weight_best, coord_best);
@@ -94,34 +130,74 @@ DetectFireResult FireDetector::detect_fire_frame(const std::vector<NmsBBoxInfo> 
             fire.point_queue.erase(fire.point_queue.begin());
         }
 
+        std::stringstream pq_ss;
+        pq_ss << "[";
+        for (size_t i = 0; i < fire.point_queue.size(); ++i) {
+            pq_ss << "(" << std::fixed << std::setprecision(16) << fire.point_queue[i].first << ", ["
+                  << static_cast<int>(fire.point_queue[i].second.x) << ", "
+                  << static_cast<int>(fire.point_queue[i].second.y) << "])";
+            if (i < fire.point_queue.size() - 1) pq_ss << ", ";
+        }
+        pq_ss << "]";
+
+        log_ss << path_idx << "," << fire_idx_counter << "," << format_rect(fire.fire_box) << "," << pq_ss.str()
+               << "\n";
+
         auto outlier_res = outlier_filter(fire.point_queue, {5, 4});
         fire.center_point = outlier_res.weighted_avg;
         fire.queue_valid_flag = outlier_res.valid_flag;
         fire.non_zero_num = outlier_res.non_zero_num;
         fire.non_outlier_num = outlier_res.non_outlier_num;
+        log_ss << "  - outlier_filter result: valid_flag=" << (fire.queue_valid_flag ? "True" : "False")
+               << ", center_point=" << format_point_as_list(fire.center_point)
+               << ", non_zero_num=" << fire.non_zero_num
+               << ", non_outlier_num=" << fire.non_outlier_num << "\n";
+
         fire.alarm_flag = fire.queue_valid_flag && fire.score > 0.5;
+        bool score_check = fire.score > 0.5;
+        log_ss << "  - Alarm Flag Calculation: queue_valid_flag(" << (fire.queue_valid_flag ? "True" : "False")
+               << ") AND score(" << std::fixed << std::setprecision(3) << fire.score
+               << ") > 0.5 (is " << (score_check ? "True" : "False")
+               << ") ==> alarm_flag=" << (fire.alarm_flag ? "True" : "False") << "\n";
+
+        fire_idx_counter++;
     }
 
+    log_ss << "\n--- Final Adjustments ---\n[Tungsten Penalty]\n";
     for (auto &fire: pre_fire_boxes) {
         for (const auto &t_box: tungsten_result) {
             if (calculate_iou(fire.fire_box, t_box.box) >= 0.001) {
+                float old_score = fire.score;
                 fire.score -= 0.5;
+                log_ss << "  - Fire at " << format_rect(fire.fire_box) << " penalized. Score "
+                       << std::fixed << std::setprecision(3) << old_score
+                       << " -> " << std::fixed << std::setprecision(3) << fire.score << ".\n";
                 break;
             }
         }
     }
+
+    log_ss << "[Final Filtering]\n";
+    size_t count_before_score = pre_fire_boxes.size();
+    log_ss << "  - Before score-based filtering: " << count_before_score << " fires.\n";
     pre_fire_boxes.erase(std::remove_if(pre_fire_boxes.begin(), pre_fire_boxes.end(),
                                         [](const Fire &box) { return box.score < 1e-6; }),
                          pre_fire_boxes.end());
+    log_ss << "  - After score-based filtering (score >= 1e-6): " << pre_fire_boxes.size() << " fires remain.\n";
 
+    size_t count_before_iou = pre_fire_boxes.size();
+    log_ss << "  - Before IOU-based filtering: " << count_before_iou << " fires.\n";
     pre_fire_boxes = filter_iou(pre_fire_boxes);
+    log_ss << "  - After IOU-based filtering: " << pre_fire_boxes.size() << " fires remain.\n";
 
     std::vector<Fire> warning_boxes;
     for (const auto &box: pre_fire_boxes) {
         if (box.alarm_flag) warning_boxes.push_back(box);
     }
 
-    return {warning_boxes, pre_fire_boxes};
+    log_ss << "\n--- Result ---\nFound " << warning_boxes.size() << " warning boxes.\n";
+
+    return {warning_boxes, pre_fire_boxes, log_ss.str()};
 }
 
 std::pair<std::vector<NmsBBoxInfo>, std::vector<NmsBBoxInfo>>
@@ -192,12 +268,9 @@ FireDetector::outlier_filter(const std::vector<std::pair<float, PointD>> &res, s
         if (idx_to_remove < cleaned_res.size())
             cleaned_res.erase(cleaned_res.begin() + idx_to_remove);
     }
-
     result.non_outlier_num = cleaned_res.size();
 
-    if ((int) result.non_zero_num < min_valid_num.first || (int) result.non_outlier_num < min_valid_num.second) {
-        // Flag remains false, coord remains (0,0)
-    } else {
+    if (!cleaned_res.empty()) {
         PointD final_coord(0.0, 0.0);
         double total_conf = 0.0;
         for (const auto &cp: cleaned_res) {
@@ -208,9 +281,19 @@ FireDetector::outlier_filter(const std::vector<std::pair<float, PointD>> &res, s
 
         if (total_conf > 1e-9) {
             result.weighted_avg = final_coord / total_conf;
-            result.valid_flag = true;
+        } else {
+            result.weighted_avg = {0.0, 0.0};
         }
+    } else {
+        result.weighted_avg = {0.0, 0.0};
     }
+
+    if ((int) result.non_zero_num >= min_valid_num.first && (int) result.non_outlier_num >= min_valid_num.second) {
+        result.valid_flag = true;
+    } else {
+        result.valid_flag = false;
+    }
+
     return result;
 }
 
@@ -250,16 +333,11 @@ cv::Mat FireDetector::cal_rb(const cv::Mat &im) {
     if (im.empty() || im.channels() != 3) {
         return {};
     }
-    // Pre-allocate the result matrix with the correct size and float type.
     cv::Mat result(im.rows, im.cols, CV_32F);
-
-    // Manually iterate through each pixel to perform the calculation.
-    // This avoids creating multiple large temporary copies from cv::split and cv::convertTo.
     for (int r = 0; r < im.rows; ++r) {
         const cv::Vec3b *p_im = im.ptr<cv::Vec3b>(r);
         float *p_res = result.ptr<float>(r);
         for (int c = 0; c < im.cols; ++c) {
-            // im is BGR, so Blue is p_im[c][0] and Green is p_im[c][1]
             p_res[c] = (static_cast<float>(p_im[c][0]) + static_cast<float>(p_im[c][1])) * 0.5f;
         }
     }
@@ -309,11 +387,10 @@ FireDetector::refine_bbox(const cv::Mat &im, const cv::Rect &xyxy, int thresh, i
             y1_ex = y1_ex - 1 - y1_ex_tol;
             break;
         }
-        // CRITICAL FIX: Pass the entire growing ROI, not just one line
         cv::Rect roi_y1_ex_rect(x1, y1 - y1_ex, x2 - x1, y1_ex);
         auto [spans, l, r] = count_high_rg_pixels_per_row(im(roi_y1_ex_rect), thresh);
 
-        if (spans.empty() || spans.front() == 0) { // Check the top-most row of the spans
+        if (spans.empty() || spans.front() == 0) {
             if (++y1_ex_tol > up_tol) {
                 y1_ex = y1_ex - 1 - y1_ex_tol;
                 break;
@@ -330,11 +407,10 @@ FireDetector::refine_bbox(const cv::Mat &im, const cv::Rect &xyxy, int thresh, i
             y2_ex = y2_ex - 1 - y2_ex_tol;
             break;
         }
-        // CRITICAL FIX: Pass the entire growing ROI
         cv::Rect roi_y2_ex_rect(x1, y2, x2 - x1, y2_ex);
         auto [spans, l, r] = count_high_rg_pixels_per_row(im(roi_y2_ex_rect), thresh);
 
-        if (spans.empty() || spans.back() == 0) { // Check the bottom-most row of the spans
+        if (spans.empty() || spans.back() == 0) {
             if (++y2_ex_tol > down_tol) {
                 y2_ex = y2_ex - 1 - y2_ex_tol;
                 break;
@@ -540,8 +616,15 @@ std::tuple<double, int, double> FireDetector::is_funnel(const std::vector<int> &
     auto [valley_idx, best_depth] = find_most_significant_valley(lst);
     if (valley_idx == -1) return {0.0, -1, 0.0};
 
-    double left_peak = *std::max_element(lst.begin(), lst.begin() + valley_idx);
-    double right_peak = lst.size() > valley_idx + 1 ? *std::max_element(lst.begin() + valley_idx + 1, lst.end()) : 0;
+    auto left_begin = lst.begin();
+    auto left_end = lst.begin() + valley_idx;
+    if (left_begin >= left_end) return {0.0, -1, 0.0};
+    double left_peak = *std::max_element(left_begin, left_end);
+
+    auto right_begin = lst.begin() + valley_idx + 1;
+    auto right_end = lst.end();
+    double right_peak = (right_begin < right_end) ? *std::max_element(right_begin, right_end) : 0;
+
     double peak = std::max(left_peak, right_peak);
     if (peak == 0 || lst[valley_idx] >= std::min(left_peak, right_peak)) return {0.0, -1, 0.0};
 
@@ -555,10 +638,14 @@ std::tuple<double, int, double> FireDetector::is_funnel(const std::vector<int> &
     for (int i = lst.size(); i < 7; ++i) len_score *= 0.9;
 
     double val_score = 1.0;
-    for (int i = *std::max_element(lst.begin(), lst.end()); i < 5; ++i) val_score *= 0.9;
+    int max_lst_val = *std::max_element(lst.begin(), lst.end());
+    for (int i = max_lst_val; i < 5; ++i) val_score *= 0.9;
 
     score = score * depth_score * len_score * val_score;
     if (score < 0.35) return {0.0, -1, best_depth};
+
+    if (score < 0.5) return {0.0, -1, best_depth * len_score * val_score};
+
     return {score, valley_idx, best_depth * len_score * val_score};
 }
 
@@ -638,11 +725,12 @@ FireLocateResult FireDetector::shape_process(const std::vector<int> &span_list, 
         if (trim_end > 0) upper_part.resize(upper_part.size() - trim_end);
 
         int coord_line_idx = std::max(1, (int) round(upper_part.size() * 4.0 / 5.0));
-        int line_width = (coord_line_idx - 1 < upper_part.size()) ? upper_part[coord_line_idx - 1] : 0;
+        int line_width = (coord_line_idx > 0 && (size_t) coord_line_idx - 1 < upper_part.size()) ? upper_part[
+                coord_line_idx - 1] : 0;
 
         double coord_x_f;
         if (line_width <= 2) {
-            coord_x_f = (*std::max_element(span_list.begin(), span_list.end()) - 1) / 2;
+            coord_x_f = (*std::max_element(span_list.begin(), span_list.end()) - 1) / 2.0;
         } else {
             int edge_idx = -1;
             double edge_value_thresh = std::min(5.0,
@@ -653,9 +741,10 @@ FireLocateResult FireDetector::shape_process(const std::vector<int> &span_list, 
             }
             if (edge_idx != -1 && edge_idx <= coord_line_idx - 1) {
                 coord_line_idx = edge_idx;
-                line_width = (coord_line_idx - 1 < upper_part.size()) ? upper_part[coord_line_idx - 1] : 0;
+                line_width = (coord_line_idx > 0 && (size_t) coord_line_idx - 1 < upper_part.size()) ? upper_part[
+                        coord_line_idx - 1] : 0;
             }
-            coord_x_f = left_zeros[coord_line_idx - 1] + line_width / 2;
+            coord_x_f = left_zeros[coord_line_idx - 1] + line_width / 2.0;
             if (line_width % 2 == 0) {
                 if ((*std::max_element(span_list.begin(), span_list.end()) - 1.0) / 2.0 < coord_x_f) {
                     coord_x_f -= 1;
@@ -703,12 +792,22 @@ FireDetector::fire_locate(const cv::Mat &im, const RectD &bbox_d, const RectD &e
         bbox.x < 0 || bbox.y < 0) {
         return {5, {floor(bbox.x + bbox.width / 2.0), floor(bbox.y + bbox.height * 0.8)}, 0.0, {}};
     }
-    cv::Mat roi = im(bbox);
+    cv::Mat roi;
+    try {
+        roi = im(bbox);
+    } catch (const cv::Exception &e) {
+        return {5, {floor(bbox.x + bbox.width / 2.0), floor(bbox.y + bbox.height * 0.8)}, 0.0, {}};
+    }
+
     if (roi.empty()) {
         return {5, {floor(bbox.x + bbox.width / 2.0), floor(bbox.y + bbox.height * 0.8)}, 0.0, {}};
     }
 
     cv::Mat rb_avg_roi = cal_rb(roi);
+    if (rb_avg_roi.empty()) {
+        return {5, {floor(bbox.x + bbox.width / 2.0), floor(bbox.y + bbox.height * 0.8)}, 0.0, {}};
+    }
+
     cv::Mat rb_flat = rb_avg_roi.reshape(1, rb_avg_roi.total());
     cv::sort(rb_flat, rb_flat, cv::SORT_ASCENDING);
 

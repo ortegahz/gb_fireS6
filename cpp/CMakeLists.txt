@@ -21,5 +21,11 @@ add_executable(fire_detector_main
         FireDetector.cpp
 )
 
+add_executable(fire_detector_main_single
+        main_single.cpp
+        FireDetector.cpp
+)
+
 # 链接 OpenCV 库
 target_link_libraries(fire_detector_main ${OpenCV_LIBS})
+target_link_libraries(fire_detector_main_single ${OpenCV_LIBS})
