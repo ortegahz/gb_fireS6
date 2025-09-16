@@ -12,7 +12,8 @@ frame_id\tfilename\t[Fire(...), Fire(...)]
 3.  对于共有帧，对比告警数量是否一致。
 4.  若数量一致，通过 IoU 对告警框进行配对，并对比 score 和 alarm_flag。
 5.  计算 score 的误差指标 (RMSE, MAE, Corr)。
-6.  生成可视化图表，并输出差异明细。
+6.  对完美匹配的告警，计算 center_point 的平均误差和方差。
+7.  生成可视化图表，并输出差异明细。
 """
 
 import argparse
@@ -64,6 +65,9 @@ def parse_fire_objects(fire_str):
     box_pattern = re.compile(r"fire_box=\(([\d\s.,eE+-]+)\)")
     score_pattern = re.compile(r"score=([\d.eE+-]+)")
     flag_pattern = re.compile(r"alarm_flag=(True|False)")
+    # 修改: 兼容 array([...]) 和 (...) 两种格式
+    point_pattern_array = re.compile(r"center_point=array\(\[([\d\s.,eE+-]+)\]\)")
+    point_pattern_tuple = re.compile(r"center_point=\(([\d\s.,eE+-]+)\)")
 
     # Manually find each "Fire(...)" block to handle nested parentheses correctly.
     # This is more robust than a single complex regex.
@@ -105,16 +109,29 @@ def parse_fire_objects(fire_str):
 
             try:
                 # Parse fire_box: "x, y, w, h" -> tuple of floats
-                # Splitting by comma and stripping is more robust than assuming ", "
                 box_coords_str = box_match.group(1).split(',')
                 fire_box = tuple(map(float, [s.strip() for s in box_coords_str]))
                 score = float(score_match.group(1))
                 alarm_flag = flag_match.group(1) == 'True'
 
+                # 修改: 兼容两种格式解析 center_point
+                center_point = (0.0, 0.0)
+                point_match = point_pattern_array.search(obj_str)
+                if not point_match:
+                    point_match = point_pattern_tuple.search(obj_str)
+
+                if point_match:
+                    point_coords_str = point_match.group(1).split(',')
+                    center_point = tuple(map(float, [s.strip() for s in point_coords_str]))
+                else:
+                    # 如果两种格式都匹配不到，才打印警告
+                    print(f"Warning: center_point not found in object string: {obj_str[:150]}")
+
                 objects.append({
                     "fire_box": fire_box,
                     "score": score,
-                    "alarm_flag": alarm_flag
+                    "alarm_flag": alarm_flag,
+                    "center_point": center_point,
                 })
             except (ValueError, IndexError) as e:
                 print(f"Warning: Failed to parse values from object string chunk: {obj_str[:150]}. Error: {e}")
@@ -169,7 +186,7 @@ def compute_score_metrics(scores1, scores2):
 
 def main():
     parser = argparse.ArgumentParser(description="Compare two output.txt files for fire detection results.")
-    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_py.txt",
+    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_py_v0.txt",
                         help="Path to the first output file (e.g., ground truth or baseline).")
     parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6_cpp.txt",
                         help="Path to the second output file (to be compared).")
@@ -209,6 +226,11 @@ def main():
 
     paired_scores_a = []
     paired_scores_b = []
+    # 新增: 用于存储配对成功的 center_point
+    paired_points_a = []
+    paired_points_b = []
+    # 新增: 用于存储详细的点位误差信息以供打印
+    point_error_details = []
 
     for frame_id in common_keys:
         alarms_a = res_a[frame_id]
@@ -224,6 +246,9 @@ def main():
         matched_b_indices = set()
         frame_scores_a = []
         frame_scores_b = []
+        # 新增: 存储当前帧的配对点
+        frame_points_a = []
+        frame_points_b = []
 
         # Create a cost matrix (1 - IoU)
         num_alarms = len(alarms_a)
@@ -281,11 +306,28 @@ def main():
                 # This pair is a perfect match
                 frame_scores_a.append(alarm_a["score"])
                 frame_scores_b.append(alarm_b["score"])
+                # 新增: 收集center_point用于后续分析
+                frame_points_a.append(alarm_a['center_point'])
+                frame_points_b.append(alarm_b['center_point'])
 
         if is_perfect_frame:
             perfect_matches.append(frame_id)
             paired_scores_a.extend(frame_scores_a)
             paired_scores_b.extend(frame_scores_b)
+            # 新增: 如果整帧都完美匹配，则将点位信息加入总列表
+            paired_points_a.extend(frame_points_a)
+            paired_points_b.extend(frame_points_b)
+            # 新增: 记录详细的点位误差信息
+            for idx in range(len(frame_points_a)):
+                pa = frame_points_a[idx]
+                pb = frame_points_b[idx]
+                dist = np.linalg.norm(np.array(pa) - np.array(pb))
+                point_error_details.append({
+                    "frame_id": frame_id,
+                    "point_a": pa,
+                    "point_b": pb,
+                    "distance": dist
+                })
 
     print("\n--- Common Frames Analysis ---")
     print(f"Perfect Matches: {len(perfect_matches)}")
@@ -296,6 +338,27 @@ def main():
     print("\nScore Error Metrics (on perfectly matched alarms):")
     for k, v in score_metrics.items():
         print(f"  {k}: {v:.6f}")
+
+    # 新增: 打印详细的点位误差，并计算最终统计值
+    if point_error_details:
+        print("\n--- Detailed Center Point Errors (Top 10 largest errors on perfectly matched alarms) ---")
+        # 按误差从大到小排序
+        sorted_errors = sorted(point_error_details, key=lambda x: x['distance'], reverse=True)
+        for item in sorted_errors[:10]:
+            pa_str = f"({item['point_a'][0]:.2f}, {item['point_a'][1]:.2f})"
+            pb_str = f"({item['point_b'][0]:.2f}, {item['point_b'][1]:.2f})"
+            print(f"  Frame {item['frame_id']}: A={pa_str:<18} | B={pb_str:<18} | Distance={item['distance']:.4f}")
+
+    if paired_points_a:
+        points_a = np.array(paired_points_a)
+        points_b = np.array(paired_points_b)
+        # 计算每对点之间的欧氏距离
+        distances = np.linalg.norm(points_a - points_b, axis=1)
+        mean_error = np.mean(distances)
+        variance_error = np.var(distances)
+        print("\nCenter Point Error Metrics (on perfectly matched alarms):")
+        print(f"  Mean Euclidean Distance: {mean_error:.6f}")
+        print(f"  Variance of Euclidean Distance: {variance_error:.6f}")
 
     # --------- Visualization ---------
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10))
