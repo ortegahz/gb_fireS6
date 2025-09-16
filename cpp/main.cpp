@@ -65,16 +65,21 @@ std::string format_warning_boxes(const std::vector<Fire> &warning_boxes) {
 }
 
 int main(int argc, char *argv[]) {
-    const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache_v0";
-    const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_cpp.txt";
-    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757382127";
+    const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache_v1";
+    const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_cpp_v1.txt";
+    const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757316682";
 
     FireDetector detector;
 
-    std::vector<cv::Point> std_pts_vec = {{768, 291},
-                                          {892, 308}};
+//    std::vector<cv::Point> std_pts_vec = {{768, 291},
+//                                          {892, 308}};
+//    const int W = 1920, H = 1080;
 
-    const int W = 1920, H = 1080;
+    std::vector<cv::Point> std_pts_vec = {{572, 150},
+                                          {648, 147},
+                                          {568, 162},
+                                          {651, 160}};
+    const int W = 1280, H = 720;
 
     cv::Rect roi = cv::boundingRect(std_pts_vec);
     double expand_exclude_ratio = 0.5;

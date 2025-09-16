@@ -186,9 +186,9 @@ def compute_score_metrics(scores1, scores2):
 
 def main():
     parser = argparse.ArgumentParser(description="Compare two output.txt files for fire detection results.")
-    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_py_v0.txt",
+    parser.add_argument("--file_a", default="/home/manu/tmp/output_gb_s6_py_v1.txt",
                         help="Path to the first output file (e.g., ground truth or baseline).")
-    parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6_cpp.txt",
+    parser.add_argument("--file_b", default="/home/manu/tmp/output_gb_s6_cpp_v1.txt",
                         help="Path to the second output file (to be compared).")
     parser.add_argument("--iou_thresh", type=float, default=0.7, help="IoU threshold for matching boxes.")
     parser_add_boolean = lambda p, name, default, help: p.add_argument(f'--{name}', f'--no-{name}', help=help,

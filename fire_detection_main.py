@@ -26,9 +26,9 @@ if __name__ == "__main__":
     # --- 功能开关和配置 ---
     # 设置为 True: 运行YOLO模型进行推理并保存检测结果。
     # 设置为 False: 从本地加载已保存的检测结果，跳过模型推理。
-    RUN_YOLO_INFERENCE = True
-    DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache"
-    OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_py.txt"
+    RUN_YOLO_INFERENCE = False
+    DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache_v1"
+    OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_py_v1.txt"
 
     # img_folder = Path("./05/p")
     # img_folder = Path(r"\\172.20.254.27\青鸟消防智慧可视化02\00部门共享\【临时文件交换目录】\【to】胡靖\0912-data\0909\2p")
@@ -38,15 +38,18 @@ if __name__ == "__main__":
         model_weight = "./models/s37e13best.onnx"
         model_inference = YOLOInference(weights=model_weight, conf_thresh=0.3, iou_thresh=0.45)
     os.makedirs(DETECTION_CACHE_DIR, exist_ok=True)
+    # visi_1757382127
     # std_pts = np.array([
-    #     (828, 310), (885, 310), (945, 310),
-    #     (826, 320), (886, 319), (946, 318),
-    #     (826, 330), (886, 328), (950, 331)
+    #     (768, 291), (892, 308),
     # ])
+    # W, H = 1920, 1080
     std_pts = np.array([
-        (768, 291), (892, 308),
+        (572, 150),
+        (648, 147),
+        (568, 162),
+        (651, 160),
     ])
-    W, H = 1920, 1080
+    W, H = 1280, 720
     # Compute inclusive ROI around the standard points, expanded by a ratio
     sx1, sy1 = np.min(std_pts, axis=0)
     sx2, sy2 = np.max(std_pts, axis=0)
