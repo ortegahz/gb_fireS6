@@ -247,12 +247,23 @@ std::vector<int> FireDetector::find_outliers(const std::vector<PointD> &points, 
 }
 
 cv::Mat FireDetector::cal_rb(const cv::Mat &im) {
-    std::vector<cv::Mat> channels;
-    cv::split(im, channels);
-    cv::Mat b, g;
-    channels[0].convertTo(b, CV_32F);
-    channels[1].convertTo(g, CV_32F);
-    return b * 0.5 + g * 0.5;
+    if (im.empty() || im.channels() != 3) {
+        return {};
+    }
+    // Pre-allocate the result matrix with the correct size and float type.
+    cv::Mat result(im.rows, im.cols, CV_32F);
+
+    // Manually iterate through each pixel to perform the calculation.
+    // This avoids creating multiple large temporary copies from cv::split and cv::convertTo.
+    for (int r = 0; r < im.rows; ++r) {
+        const cv::Vec3b *p_im = im.ptr<cv::Vec3b>(r);
+        float *p_res = result.ptr<float>(r);
+        for (int c = 0; c < im.cols; ++c) {
+            // im is BGR, so Blue is p_im[c][0] and Green is p_im[c][1]
+            p_res[c] = (static_cast<float>(p_im[c][0]) + static_cast<float>(p_im[c][1])) * 0.5f;
+        }
+    }
+    return result;
 }
 
 std::tuple<std::vector<int>, std::vector<int>, std::vector<int>>

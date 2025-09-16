@@ -12,7 +12,7 @@ frame_id\tfilename\t[Fire(...), Fire(...)]
 3.  对于共有帧，对比告警数量是否一致。
 4.  若数量一致，通过 IoU 对告警框进行配对，并对比 score 和 alarm_flag。
 5.  计算 score 的误差指标 (RMSE, MAE, Corr)。
-6.  对完美匹配的告警，计算 center_point 的平均误差和方差。
+6.  对完美匹配的告警，计算 center_point 的平均误差、方差和最大误差。
 7.  生成可视化图表，并输出差异明细。
 """
 
@@ -356,9 +356,18 @@ def main():
         distances = np.linalg.norm(points_a - points_b, axis=1)
         mean_error = np.mean(distances)
         variance_error = np.var(distances)
+        max_error = np.max(distances) if distances.size > 0 else 0
+
+        # 新增: 计算超过1像素误差的数量和百分比
+        errors_over_1_pixel = (distances > 1).sum()
+        total_pairs = len(distances)
+        percentage_over_1 = (errors_over_1_pixel / total_pairs) * 100 if total_pairs > 0 else 0
+
         print("\nCenter Point Error Metrics (on perfectly matched alarms):")
         print(f"  Mean Euclidean Distance: {mean_error:.6f}")
         print(f"  Variance of Euclidean Distance: {variance_error:.6f}")
+        print(f"  Max Euclidean Distance: {max_error:.6f}")
+        print(f"  Errors > 1.0 pixel: {errors_over_1_pixel} / {total_pairs} ({percentage_over_1:.2f}%)")
 
     # --------- Visualization ---------
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10))
