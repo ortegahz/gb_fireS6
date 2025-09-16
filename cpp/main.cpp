@@ -21,7 +21,7 @@ int extract_number(const std::string &filename) {
     return 0;
 }
 
-std::string format_point_queue(const std::vector<std::pair<double, PointD>> &queue) {
+std::string format_point_queue(const std::vector<std::pair<float, PointD>> &queue) {
     std::stringstream ss;
     ss << std::fixed << std::setprecision(5);
     ss << "[";
@@ -65,7 +65,7 @@ std::string format_warning_boxes(const std::vector<Fire> &warning_boxes) {
 }
 
 int main(int argc, char *argv[]) {
-    const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache";
+    const std::string DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache_v0";
     const std::string OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_cpp.txt";
     const std::string IMG_FOLDER_PATH = "/home/manu/nfs/visi_1757382127";
 

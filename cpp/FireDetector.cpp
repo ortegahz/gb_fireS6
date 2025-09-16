@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
-Fire::Fire(RectD box, double s)
+Fire::Fire(RectD box, float s)
         : fire_box(box), score(s), fire_point(0.0, 0.0), matched(true), center_point(0, 0),
           queue_valid_flag(false), non_zero_num(0), non_outlier_num(0), alarm_flag(false) {}
 
@@ -172,7 +172,7 @@ std::vector<Fire> FireDetector::filter_iou(std::vector<Fire> fire_list) {
 }
 
 OutlierFilterResult
-FireDetector::outlier_filter(const std::vector<std::pair<double, PointD>> &res, std::pair<int, int> min_valid_num,
+FireDetector::outlier_filter(const std::vector<std::pair<float, PointD>> &res, std::pair<int, int> min_valid_num,
                              double threshold, int max_outlier_num) {
     OutlierFilterResult result = {false, {0.0, 0.0}, 0, 0};
 

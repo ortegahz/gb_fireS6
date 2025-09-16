@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # --- 功能开关和配置 ---
     # 设置为 True: 运行YOLO模型进行推理并保存检测结果。
     # 设置为 False: 从本地加载已保存的检测结果，跳过模型推理。
-    RUN_YOLO_INFERENCE = False
+    RUN_YOLO_INFERENCE = True
     DETECTION_CACHE_DIR = "/home/manu/tmp/detections_cache"
     OUTPUT_FILE = "/home/manu/tmp/output_gb_s6_py.txt"
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     multiFrameSwitch = True
     CheckingFireInformationGlobal = deque()
 
-    img_folder = glob.glob("/home/manu/nfs/visi_1757382127/*")
+    img_folder = glob.glob("/home/manu/nfs/visi_1757316682/*")
     sorted_file_list = sorted(img_folder, key=extract_number)
     img_idx = 0
     with open(OUTPUT_FILE, 'w') as f_out:

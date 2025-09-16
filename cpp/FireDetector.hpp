@@ -18,11 +18,11 @@ struct NmsBBoxInfo {
 class Fire {
 public:
     RectD fire_box;
-    double score;
+    float score;
     PointD fire_point; // <-- 新增成员
     bool matched;
 
-    std::vector<std::pair<double, PointD>> point_queue;
+    std::vector<std::pair<float, PointD>> point_queue;
 
     PointD center_point;
     bool queue_valid_flag;
@@ -30,7 +30,7 @@ public:
     int non_outlier_num;
     bool alarm_flag;
 
-    Fire(RectD box, double s);
+    Fire(RectD box, float s);
 };
 
 struct FireLocateResult {
@@ -102,7 +102,7 @@ private:
     std::pair<double, int> is_rectangle(const std::vector<int> &lst);
 
     OutlierFilterResult
-    outlier_filter(const std::vector<std::pair<double, PointD>> &res, std::pair<int, int> min_valid_num,
+    outlier_filter(const std::vector<std::pair<float, PointD>> &res, std::pair<int, int> min_valid_num,
                    double threshold = 2.5, int max_outlier_num = 3);
 
     std::vector<int> find_outliers(const std::vector<PointD> &points, double threshold, int max_outlier_num);
